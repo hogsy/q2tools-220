@@ -1,0 +1,3 @@
+[submodule "hei"]
+	path = hei
+	url = https://github.com/OldTimes-Software/hei.git

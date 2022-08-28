@@ -1066,7 +1066,7 @@ typedef struct
     vec3_t facenormal;
 
     int32_t numsurfpt;
-    vec3_t surfpt[QBSP_SINGLEMAP];
+    vec3_t surfpt[SINGLEMAP];
 
     vec3_t modelorg; // for origined bmodels
 
@@ -2147,7 +2147,6 @@ float sampleofs[5][2] =
     {{0, 0}, {-0.25, -0.25}, {0.25, -0.25}, {0.25, 0.25}, {-0.25, 0.25}};
 
 void BuildFacelights(int32_t facenum) {
-    lightinfo_t liteinfo[5];
     float *styletable[MAX_LSTYLES];
     int32_t i, j;
     float *spot;
@@ -2160,70 +2159,42 @@ void BuildFacelights(int32_t facenum) {
     vec3_t pos;
     vec3_t pointnormal;
 
-    if (use_qbsp) {
-        dface_tx *this_face;
-        this_face = &dfacesX[facenum];
+	dface_t *this_face;
+	this_face = &dfaces[ facenum ];
 
-        if (texinfo[this_face->texinfo].flags & (SURF_WARP | SURF_SKY))
-            return; // non-lit texture
+	if ( texinfo[ this_face->texinfo ].flags & ( SURF_WARP | SURF_SKY ) )
+		return;// non-lit texture
 
-        memset(styletable, 0, sizeof(styletable));
+	memset( styletable, 0, sizeof( styletable ) );
 
-        if (extrasamples) // set with -extra option
-            numsamples = 5;
-        else
-            numsamples = 1;
-        for (i = 0; i < numsamples; i++) {
-            memset(&liteinfo[i], 0, sizeof(liteinfo[i]));
-            liteinfo[i].surfnum = facenum;
-            liteinfo[i].faceX   = this_face;
-            VectorCopy(dplanes[this_face->planenum].normal, liteinfo[i].facenormal);
-            liteinfo[i].facedist = dplanes[this_face->planenum].dist;
-            if (this_face->side) {
-                VectorSubtract(vec3_origin, liteinfo[i].facenormal, liteinfo[i].facenormal);
-                liteinfo[i].facedist = -liteinfo[i].facedist;
-            }
+	if ( extrasamples )// set with -extra option
+		numsamples = 5;
+	else
+		numsamples = 1;
 
-            // get the origin offset for rotating bmodels
-            VectorCopy(face_offset[facenum], liteinfo[i].modelorg);
+	lightinfo_t *liteinfo = PL_NEW_( lightinfo_t, numsamples );
+	for ( i = 0; i < numsamples; i++ )
+	{
+		memset( &liteinfo[ i ], 0, sizeof( liteinfo[ i ] ) );
+		liteinfo[ i ].surfnum = facenum;
+		liteinfo[ i ].face = this_face;
+		VectorCopy( dplanes[ this_face->planenum ].normal, liteinfo[ i ].facenormal );
+		liteinfo[ i ].facedist = dplanes[ this_face->planenum ].dist;
+		if ( this_face->side )
+		{
+			VectorSubtract( vec3_origin, liteinfo[ i ].facenormal, liteinfo[ i ].facenormal );
+			liteinfo[ i ].facedist = -liteinfo[ i ].facedist;
+		}
 
-            CalcFaceVectors(&liteinfo[i]);
-            CalcFaceExtents(&liteinfo[i]);
-            CalcPoints(&liteinfo[i], sampleofs[i][0], sampleofs[i][1]);
-        }
-    } else {
-        dface_t *this_face;
-        this_face = &dfaces[facenum];
+		// get the origin offset for rotating bmodels
+		VectorCopy( face_offset[ facenum ], liteinfo[ i ].modelorg );
 
-        if (texinfo[this_face->texinfo].flags & (SURF_WARP | SURF_SKY))
-            return; // non-lit texture
+		CalcFaceVectors( &liteinfo[ i ] );
+		CalcFaceExtents( &liteinfo[ i ] );
+		CalcPoints( &liteinfo[ i ], sampleofs[ i ][ 0 ], sampleofs[ i ][ 1 ] );
+	}
 
-        memset(styletable, 0, sizeof(styletable));
-
-        if (extrasamples) // set with -extra option
-            numsamples = 5;
-        else
-            numsamples = 1;
-        for (i = 0; i < numsamples; i++) {
-            memset(&liteinfo[i], 0, sizeof(liteinfo[i]));
-            liteinfo[i].surfnum = facenum;
-            liteinfo[i].face    = this_face;
-            VectorCopy(dplanes[this_face->planenum].normal, liteinfo[i].facenormal);
-            liteinfo[i].facedist = dplanes[this_face->planenum].dist;
-            if (this_face->side) {
-                VectorSubtract(vec3_origin, liteinfo[i].facenormal, liteinfo[i].facenormal);
-                liteinfo[i].facedist = -liteinfo[i].facedist;
-            }
-
-            // get the origin offset for rotating bmodels
-            VectorCopy(face_offset[facenum], liteinfo[i].modelorg);
-
-            CalcFaceVectors(&liteinfo[i]);
-            CalcFaceExtents(&liteinfo[i]);
-            CalcPoints(&liteinfo[i], sampleofs[i][0], sampleofs[i][1]);
-        }
-    }
-    tablesize     = liteinfo[0].numsurfpt * sizeof(vec3_t);
+	tablesize     = liteinfo[0].numsurfpt * sizeof(vec3_t);
     styletable[0] = malloc(tablesize);
     memset(styletable[0], 0, tablesize);
 
@@ -2238,10 +2209,9 @@ void BuildFacelights(int32_t facenum) {
         sun_ambient_once = false;
         sun_main_once    = false;
 
+		byte *pvs = PL_NEW_( byte, ( MAX_MAP_LEAFS + 7 ) / 8 );
         for (j = 0; j < numsamples; j++) {
-            byte pvs[(MAX_MAP_LEAFS_QBSP + 7) / 8];
-
-            if (numsamples > 1) {
+			if (numsamples > 1) {
                 if (!NudgeSamplePosition(liteinfo[j].surfpt[i], liteinfo[0].facenormal, center, pos, pvs)) {
                     continue; // not a valid point
                 }
@@ -2257,6 +2227,7 @@ void BuildFacelights(int32_t facenum) {
             GatherSampleLight(pos, pointnormal, styletable, i * 3, tablesize, 1.0 / numsamples,
                               &sun_main_once, &sun_ambient_once, pvs);
         }
+		PL_DELETE( pvs );
 
         // contribute the sample to one or more patches
         AddSampleToPatch(liteinfo[0].surfpt[i], styletable[0] + i * 3, facenum);
@@ -2289,6 +2260,8 @@ void BuildFacelights(int32_t facenum) {
             VectorAdd(spot, face_patches[facenum]->baselight, spot);
         }
     }
+
+	PL_DELETE( liteinfo );
 }
 
 /*

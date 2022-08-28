@@ -26,6 +26,9 @@ textureref_t textureref[MAX_MAP_TEXTURES];
 //==========================================================================
 
 int32_t FindMiptex(char *name) {
+	//TODO: I think this will need rewriting to use the texturedef crap
+	// that Anachronox provides instead
+
     int32_t i, mod_fail;
     char path[1080];
     char pakpath[56];

@@ -23,12 +23,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define MAX_THREADS 64
 
-int32_t dispatch;
-int32_t workcount;
-int32_t oldf;
-qboolean pacifier;
+static int32_t dispatch;
+static int32_t workcount;
+static int32_t oldf;
+static qboolean pacifier;
 
-qboolean threaded;
+static qboolean threaded;
 
 /*
 =============
@@ -63,16 +63,19 @@ int32_t GetThreadWork(void) {
 
 void (*workfunction)(int32_t);
 
-void ThreadWorkerFunction(int32_t threadnum) {
-    int32_t work;
+void ThreadWorkerFunction( int32_t threadnum )
+{
+	int32_t work;
 
-    while (1) {
-        work = GetThreadWork();
-        if (work == -1)
-            break;
-        // printf ("thread %i, work %i\n", threadnum, work);
-        workfunction(work);
-    }
+	while ( 1 )
+	{
+		work = GetThreadWork();
+		if ( work == -1 )
+			break;
+		if ( verbose )
+			printf( "thread %i, work %i\n", threadnum, work );
+		workfunction( work );
+	}
 }
 
 void RunThreadsOnIndividual(int32_t workcnt, qboolean showpacifier, void (*func)(int32_t)) {

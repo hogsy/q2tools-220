@@ -10,30 +10,30 @@
 #define MAXPOINTS 2000
 #define MAXPOLYS  2000
 
-struct {
+static struct {
     float p[3];
 } pnt[MAXPOINTS];
-struct {
+static struct {
     short pl[3];
 } ply[MAXPOLYS];
 
-char trashcan[10000];
+static char trashcan[10000];
 char buffer[1000];
-long counter;
-union {
+static long counter;
+static union {
     char c[4];
     float f;
     long l;
 } buffer4;
-union {
+static union {
     char c[2];
     short i;
 } buffer2;
 
-FILE *lwo;
-short numpoints, numpolys;
+static FILE *lwo;
+static short numpoints, numpolys;
 
-long lflip(long x) {
+static long lflip(long x) {
     union {
         char b[4];
         long l;
@@ -48,7 +48,7 @@ long lflip(long x) {
     return out.l;
 }
 
-float fflip(float x) {
+static float fflip(float x) {
     union {
         char b[4];
         float l;
@@ -63,7 +63,7 @@ float fflip(float x) {
     return out.l;
 }
 
-int sflip(short x) {
+static int sflip(short x) {
     union {
         char b[2];
         short i;
@@ -76,7 +76,7 @@ int sflip(short x) {
     return out.i;
 }
 
-void skipchunk() {
+static void skipchunk() {
     long chunksize;
 
     fread(buffer4.c, 4, 1, lwo);
@@ -86,7 +86,7 @@ void skipchunk() {
     counter -= chunksize;
 };
 
-void getpoints() {
+static void getpoints() {
     long chunksize;
     short i, j;
 
@@ -107,7 +107,7 @@ void getpoints() {
     }
 }
 
-void getpolys() {
+static void getpolys() {
     short temp, i, j;
     short polypoints;
     long chunksize;

@@ -443,10 +443,9 @@ void MakeTransfers(int32_t i) {
     float total, inv_total;
     dplane_t plane;
     vec3_t origin;
-    float transfers[MAX_PATCHES_QBSP];
     int32_t s;
     int32_t itotal;
-    byte pvs[(MAX_MAP_LEAFS_QBSP + 7) / 8];
+
     int32_t cluster;
     int32_t calc_trace, test_trace;
 
@@ -455,12 +454,14 @@ void MakeTransfers(int32_t i) {
 
     VectorCopy(patch->origin, origin);
     plane = *patch->plane;
-    if (!PvsForOrigin(patch->origin, pvs))
-        return;
+	byte *pvs = PL_NEW_( byte, ( MAX_MAP_LEAFS + 7 ) / 8 );
+	if ( ( patch->area == 0 ) || !PvsForOrigin( patch->origin, pvs ) )
+	{
+		PL_DELETE( pvs );
+		return;
+	}
 
-    if (patch->area == 0)
-        return;
-    // find out which patches will collect light from patch
+	// find out which patches will collect light from patch
     patch->numtransfers = 0;
     calc_trace          = (save_trace && memory && first_transfer);
     test_trace          = (save_trace && memory && !first_transfer);
@@ -470,6 +471,8 @@ void MakeTransfers(int32_t i) {
     } else if (test_trace) {
         DecompressBytes(trace_buf_size, patch->trace_hit, trace_buf);
     }
+
+	float *transfers = PL_NEW_( float, num_patches );
     for (j = 0, patch2 = patches; j < num_patches; j++, patch2++) {
         transfers[j] = 0;
 
@@ -576,6 +579,9 @@ void MakeTransfers(int32_t i) {
 
     // don't bother locking around this.  not that important.
     total_transfer += patch->numtransfers;
+
+	PL_DELETE( transfers );
+	PL_DELETE( pvs );
 }
 
 /*

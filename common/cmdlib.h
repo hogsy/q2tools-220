@@ -23,6 +23,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef __CMDLIB__
 #define __CMDLIB__
 
+#include <plcore/pl.h>
+#include <plcore/pl_filesystem.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -34,8 +37,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifndef __BYTEBOOL__
 #define __BYTEBOOL__
-typedef enum { false,
-               true } qboolean;
+typedef int qboolean;
 typedef uint8_t byte;
 #endif
 

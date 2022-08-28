@@ -18,6 +18,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 ===========================================================================
 */
 
+#include <plcore/pl_image.h>
+
 #include "qrad.h"
 
 /*
@@ -42,7 +44,7 @@ vec3_t face_offset[MAX_MAP_FACES_QBSP]; // for rotating bmodels
 dplane_t backplanes[MAX_MAP_PLANES_QBSP];
 
 char inbase[32], outbase[32];
-char basedir[64] = "baseq2"; // qb; default
+char basedir[64] = "anoxdata"; // qb; default
 
 int32_t fakeplanes; // created planes for origin offset
 
@@ -836,7 +838,15 @@ int32_t main(int32_t argc, char **argv) {
     double start, end;
     char name[1060];
 
-    printf("\n\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< 4rad >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	if ( PlInitialize( argc, argv ) != PL_RESULT_SUCCESS || PlInitializeSubSystems( PL_SUBSYSTEM_IO ) != PL_RESULT_SUCCESS )
+	{
+		printf( "Failed to init Hei: %s\n", PlGetError() );
+		return EXIT_FAILURE;
+	}
+
+	PlRegisterStandardImageLoaders( PL_IMAGE_FILEFORMAT_PNG );
+
+	printf("\n\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< 4rad >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
     printf("radiosity compiler build " __DATE__ "\n");
 
     verbose        = false;

@@ -18,6 +18,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 ===========================================================================
 */
 
+#include <plcore/pl_image.h>
+
 #include "qrad.h"
 
 vec3_t texture_reflectivity[MAX_MAP_TEXINFO_QBSP];
@@ -56,9 +58,9 @@ void CalcTextureReflectivity( void )
 	// for TGA RGBA texture images
 
 	// always set index 0 even if no textures
-	texture_reflectivity[ 0 ][ 0 ] = 0.5;
-	texture_reflectivity[ 0 ][ 1 ] = 0.5;
-	texture_reflectivity[ 0 ][ 2 ] = 0.5;
+	texture_reflectivity[ 0 ][ 0 ] = 0.5f;
+	texture_reflectivity[ 0 ][ 1 ] = 0.5f;
+	texture_reflectivity[ 0 ][ 2 ] = 0.5f;
 
 	for ( i = 0; i < numtexinfo; i++ )
 	{
@@ -79,43 +81,35 @@ void CalcTextureReflectivity( void )
 				break;
 			}
 		}
+
 		if ( j != i )
 			continue;
 
 		// buffer is RGBA  (A  set to 255 for 24 bit format)
 		// looks in moddir then base dir
-		sprintf( path, "%stextures/%s.tga", moddir, texinfo[ i ].texture );
-		if ( FileExists( path ) )// LoadTGA expects file to exist
+		sprintf( path, "%stextures/%s.png", moddir, texinfo[ i ].texture );
+
+		PLImage *image;
+		if ( ( image = PlLoadImage( path ) ) == NULL )
 		{
-			LoadTGA( path, &pbuffer, &width, &height );// load rgba data
-			qprintf( "load %s\n", path );
-		}
-		else
-		{
-			sprintf( path, "%s%s/textures/%s.tga", gamedir, basedir, texinfo[ i ].texture );
-			if ( FileExists( path ) )
+			qprintf( "FAILED TO LOAD %s: %s\n", path, PlGetError() );
+			sprintf( path, "%s%s/textures/%s.png", gamedir, basedir, texinfo[ i ].texture );
+			if ( ( image = PlLoadImage( path ) ) == NULL )
 			{
-				LoadTGA( path, &pbuffer, &width, &height );// load rgba data
-				qprintf( "load %s from %s\n", path, basedir );
-			}
-			else
-			{
-				qprintf( "NOT FOUND %s\n", path );
+				qprintf( "FAILED TO LOAD %s: %s\n", path, PlGetError() );
 				continue;
 			}
 		}
+
+		pbuffer = image->data[ 0 ];
+		width = ( int ) image->width;
+		height = ( int ) image->height;
 
 		//
 		// Calculate the "average color" for the texture
 		//
 
 		texels = width * height;
-		if ( texels <= 0 )
-		{
-			qprintf( "tex %i (%s) no rgba data (file broken?)\n", i, path );
-			continue;// empty texture, possible bad file
-		}
-
 		color[ 0 ] = color[ 1 ] = color[ 2 ] = 0.0f;
 		ptexel = pbuffer;
 		fbuffer = malloc( texels * 4 * sizeof( float ) );
@@ -129,25 +123,15 @@ void CalcTextureReflectivity( void )
 			tex_a = ( float ) ( *ptexel++ );
 
 			if ( texinfo[ i ].flags & ( SURF_WARP | SURF_NODRAW ) )
-			{
 				a = 0.0f;
-			}
 			else if ( ( texinfo[ i ].flags & SURF_TRANS33 ) && ( texinfo[ i ].flags & SURF_TRANS66 ) )
-			{
 				a = tex_a / 511.0f;
-			}
 			else if ( texinfo[ i ].flags & SURF_TRANS33 )
-			{
 				a = tex_a / 765.0f;
-			}
 			else if ( texinfo[ i ].flags & SURF_TRANS66 )
-			{
 				a = tex_a / 382.5f;
-			}
 			else
-			{
 				a = 1.0f;
-			}
 
 			for ( j = 0; j < 3; j++ )
 			{
@@ -157,9 +141,10 @@ void CalcTextureReflectivity( void )
 			*ftexel++ = a;
 		}
 
+		PlDestroyImage( image );
+
 		// never freed but we'll need it up until the end
 		texture_data[ i ] = fbuffer;
-		// qb: freed in LoadTGA now.  free(pbuffer);
 
 		for ( j = 0; j < 3; j++ )
 		{

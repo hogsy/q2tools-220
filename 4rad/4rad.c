@@ -1043,12 +1043,12 @@ int32_t main(int32_t argc, char **argv) {
     if (!visdatasize) {
         printf("No vis information, direct lighting only.\n");
         numbounce = 0;
-        ambient   = 0.1;
+        ambient   = 0.1f;
     }
 
     RadWorld();
 
-    if (smoothing_threshold > 0.0) {
+    if (smoothing_threshold > 0.0f) {
         printf("Smoothing edges found: %i\n", num_smoothing);
     }
 

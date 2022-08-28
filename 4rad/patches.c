@@ -38,192 +38,172 @@ int32_t texture_sizes[MAX_MAP_TEXINFO_QBSP][2];
 CalcTextureReflectivity
 ======================
 */
-void CalcTextureReflectivity(void) {
-    int32_t i, j, k, count;
-    int32_t texels, texel;
-    qboolean wal_tex;
-    float color[3], cur_color[3], tex_a, a;
-    char path[1200];
-    float *r, *g, *b;
-    float c;
-    byte *pbuffer = NULL; // mxd. "potentially uninitialized local pointer variable" in VS2017 if uninitialized
+void CalcTextureReflectivity( void )
+{
+	int32_t  i, j, k, count;
+	int32_t  texels, texel;
+	float    color[ 3 ], cur_color[ 3 ], tex_a, a;
+	char     path[ 1200 ];
+	float   *r, *g, *b;
+	float    c;
+	byte    *pbuffer = NULL;// mxd. "potentially uninitialized local pointer variable" in VS2017 if uninitialized
 
-    byte *ptexel;
-    byte *palette;
-    miptex_t *mt = NULL; // mxd. "potentially uninitialized local pointer variable" in VS2017 if uninitialized
-    float *fbuffer, *ftexel;
-    int32_t width, height;
+	byte     *ptexel;
+	miptex_t *mt = NULL;// mxd. "potentially uninitialized local pointer variable" in VS2017 if uninitialized
+	float    *fbuffer, *ftexel;
+	int32_t   width, height;
 
-    // for TGA RGBA texture images
+	// for TGA RGBA texture images
 
-    wal_tex = false;
+	// always set index 0 even if no textures
+	texture_reflectivity[ 0 ][ 0 ] = 0.5;
+	texture_reflectivity[ 0 ][ 1 ] = 0.5;
+	texture_reflectivity[ 0 ][ 2 ] = 0.5;
 
-    sprintf(path, "%spics/colormap.pcx", moddir); // qb: was gamedir
+	for ( i = 0; i < numtexinfo; i++ )
+	{
+		// default
+		texture_reflectivity[ i ][ 0 ] = 0.5f;
+		texture_reflectivity[ i ][ 1 ] = 0.5f;
+		texture_reflectivity[ i ][ 2 ] = 0.5f;
 
-    // get the game palette
-    Load256Image(path, NULL, &palette, NULL, NULL);
+		// see if an earlier texinfo already got the value
+		for ( j = 0; j < i; j++ )
+		{
+			if ( !strcmp( texinfo[ i ].texture, texinfo[ j ].texture ) )
+			{
+				VectorCopy( texture_reflectivity[ j ], texture_reflectivity[ i ] );
+				texture_data[ i ] = texture_data[ j ];
+				texture_sizes[ i ][ 0 ] = texture_sizes[ j ][ 0 ];
+				texture_sizes[ i ][ 1 ] = texture_sizes[ j ][ 1 ];
+				break;
+			}
+		}
+		if ( j != i )
+			continue;
 
-    // always set index 0 even if no textures
-    texture_reflectivity[0][0] = 0.5;
-    texture_reflectivity[0][1] = 0.5;
-    texture_reflectivity[0][2] = 0.5;
+		// buffer is RGBA  (A  set to 255 for 24 bit format)
+		// looks in moddir then base dir
+		sprintf( path, "%stextures/%s.tga", moddir, texinfo[ i ].texture );
+		if ( FileExists( path ) )// LoadTGA expects file to exist
+		{
+			LoadTGA( path, &pbuffer, &width, &height );// load rgba data
+			qprintf( "load %s\n", path );
+		}
+		else
+		{
+			sprintf( path, "%s%s/textures/%s.tga", gamedir, basedir, texinfo[ i ].texture );
+			if ( FileExists( path ) )
+			{
+				LoadTGA( path, &pbuffer, &width, &height );// load rgba data
+				qprintf( "load %s from %s\n", path, basedir );
+			}
+			else
+			{
+				qprintf( "NOT FOUND %s\n", path );
+				continue;
+			}
+		}
 
-    for (i = 0; i < numtexinfo; i++) {
-        // default
-        texture_reflectivity[i][0] = 0.5f;
-        texture_reflectivity[i][1] = 0.5f;
-        texture_reflectivity[i][2] = 0.5f;
+		//
+		// Calculate the "average color" for the texture
+		//
 
-        // see if an earlier texinfo already got the value
-        for (j = 0; j < i; j++) {
-            if (!strcmp(texinfo[i].texture, texinfo[j].texture)) {
-                VectorCopy(texture_reflectivity[j], texture_reflectivity[i]);
-                texture_data[i]     = texture_data[j];
-                texture_sizes[i][0] = texture_sizes[j][0];
-                texture_sizes[i][1] = texture_sizes[j][1];
-                break;
-            }
-        }
-        if (j != i)
-            continue;
+		texels = width * height;
+		if ( texels <= 0 )
+		{
+			qprintf( "tex %i (%s) no rgba data (file broken?)\n", i, path );
+			continue;// empty texture, possible bad file
+		}
 
-        // buffer is RGBA  (A  set to 255 for 24 bit format)
-        // looks in moddir then base dir
-        sprintf(path, "%stextures/%s.tga", moddir, texinfo[i].texture);
-        if (FileExists(path)) // LoadTGA expects file to exist
-        {
-            LoadTGA(path, &pbuffer, &width, &height); // load rgba data
-            qprintf("load %s\n", path);
-        } else {
-            sprintf(path, "%s%s/textures/%s.tga", gamedir, basedir, texinfo[i].texture);
-            if (FileExists(path)) {
-                LoadTGA(path, &pbuffer, &width, &height); // load rgba data
-                qprintf("load %s from %s\n", path, basedir);
-            } else {
-                // look for wal file in moddir
-                sprintf(path, "%stextures/%s.wal", moddir, texinfo[i].texture);
-                qprintf("attempting %s\n", path);
+		color[ 0 ] = color[ 1 ] = color[ 2 ] = 0.0f;
+		ptexel = pbuffer;
+		fbuffer = malloc( texels * 4 * sizeof( float ) );
+		ftexel = fbuffer;
 
-                // load the miptex to get the flags and values
-                if (FileExists(path)) // qb: linux segfault if not exist
-                {
-                    if (TryLoadFile(path, (void **)&mt, false) != -1)
-                        wal_tex = true;
-                } else {
-                    // look for wal file in base dir
-                    sprintf(path, "%s%s/textures/%s.wal", gamedir, basedir, texinfo[i].texture);
-                    qprintf("attempting %s from %s\n", path, basedir);
+		for ( count = texels; count--; )
+		{
+			cur_color[ 0 ] = ( float ) ( *ptexel++ );// r
+			cur_color[ 1 ] = ( float ) ( *ptexel++ );// g
+			cur_color[ 2 ] = ( float ) ( *ptexel++ );// b
+			tex_a = ( float ) ( *ptexel++ );
 
-                    // load the miptex to get the flags and values
-                    if (FileExists(path)) // qb: linux segfault if not exist
-                    {
-                        if (TryLoadFile(path, (void **)&mt, false) != -1)
-                            wal_tex = true;
-                    } else {
-                        qprintf("NOT FOUND %s\n", path);
-                        continue;
-                    }
-                }
-            }
-        }
+			if ( texinfo[ i ].flags & ( SURF_WARP | SURF_NODRAW ) )
+			{
+				a = 0.0f;
+			}
+			else if ( ( texinfo[ i ].flags & SURF_TRANS33 ) && ( texinfo[ i ].flags & SURF_TRANS66 ) )
+			{
+				a = tex_a / 511.0f;
+			}
+			else if ( texinfo[ i ].flags & SURF_TRANS33 )
+			{
+				a = tex_a / 765.0f;
+			}
+			else if ( texinfo[ i ].flags & SURF_TRANS66 )
+			{
+				a = tex_a / 382.5f;
+			}
+			else
+			{
+				a = 1.0f;
+			}
 
-        //
-        // Calculate the "average color" for the texture
-        //
+			for ( j = 0; j < 3; j++ )
+			{
+				*ftexel++ = cur_color[ j ] / 255.0;
+				color[ j ] += cur_color[ j ] * a;
+			}
+			*ftexel++ = a;
+		}
 
-        if (wal_tex) {
-            texels   = LittleLong(mt->width) * LittleLong(mt->height);
-            color[0] = color[1] = color[2] = 0;
+		// never freed but we'll need it up until the end
+		texture_data[ i ] = fbuffer;
+		// qb: freed in LoadTGA now.  free(pbuffer);
 
-            for (j = 0; j < texels; j++) {
-                texel = ((byte *)mt)[LittleLong(mt->offsets[0]) + j];
-                for (k = 0; k < 3; k++)
-                    color[k] += palette[texel * 3 + k];
-            }
-        } else {
-            texels = width * height;
-            if (texels <= 0) {
-                qprintf("tex %i (%s) no rgba data (file broken?)\n", i, path);
-                continue; // empty texture, possible bad file
-            }
-
-            color[0] = color[1] = color[2] = 0.0f;
-            ptexel                         = pbuffer;
-            fbuffer                        = malloc(texels * 4 * sizeof(float));
-            ftexel                         = fbuffer;
-
-            for (count = texels; count--;) {
-                cur_color[0] = (float)(*ptexel++); // r
-                cur_color[1] = (float)(*ptexel++); // g
-                cur_color[2] = (float)(*ptexel++); // b
-                tex_a        = (float)(*ptexel++);
-
-                if (texinfo[i].flags & (SURF_WARP | SURF_NODRAW)) {
-                    a = 0.0;
-                } else if ((texinfo[i].flags & SURF_TRANS33) && (texinfo[i].flags & SURF_TRANS66)) {
-                    a = tex_a / 511.0;
-                } else if (texinfo[i].flags & SURF_TRANS33) {
-                    a = tex_a / 765.0;
-                } else if (texinfo[i].flags & SURF_TRANS66) {
-                    a = tex_a / 382.5;
-                } else {
-                    a = 1.0;
-                }
-
-                for (j = 0; j < 3; j++) {
-                    *ftexel++ = cur_color[j] / 255.0;
-                    color[j] += cur_color[j] * a;
-                }
-                *ftexel++ = a;
-            }
-
-            // never freed but we'll need it up until the end
-            texture_data[i] = fbuffer;
-            // qb: freed in LoadTGA now.  free(pbuffer);
-        }
-
-        for (j = 0; j < 3; j++) {
-            // average RGB for the texture to 0.0..1.0 range
-            c                          = color[j] / (float)texels / 255.0f;
-            texture_reflectivity[i][j] = c;
-        }
+		for ( j = 0; j < 3; j++ )
+		{
+			// average RGB for the texture to 0.0..1.0 range
+			c = color[ j ] / ( float ) texels / 255.0f;
+			texture_reflectivity[ i ][ j ] = c;
+		}
 
 // reflectivity saturation
 #define Pr .299
 #define Pg .587
 #define Pb .114
 
-        //  public-domain function by Darel Rex Finley
-        //
-        //  The passed-in RGB values can be on any desired scale, such as 0 to
-        //  to 1, or 0 to 255.  (But use the same scale for all three!)
-        //
-        //  The "saturation" parameter works like this:
-        //    0.0 creates a black-and-white image.
-        //    0.5 reduces the color saturation by half.
-        //    1.0 causes no change.
-        //    2.0 doubles the color saturation.
-        //  Note:  A "change" value greater than 1.0 may project your RGB values
-        //  beyond their normal range, in which case you probably should truncate
-        //  them to the desired range before trying to use them in an image.
+		//  public-domain function by Darel Rex Finley
+		//
+		//  The passed-in RGB values can be on any desired scale, such as 0 to
+		//  to 1, or 0 to 255.  (But use the same scale for all three!)
+		//
+		//  The "saturation" parameter works like this:
+		//    0.0 creates a black-and-white image.
+		//    0.5 reduces the color saturation by half.
+		//    1.0 causes no change.
+		//    2.0 doubles the color saturation.
+		//  Note:  A "change" value greater than 1.0 may project your RGB values
+		//  beyond their normal range, in which case you probably should truncate
+		//  them to the desired range before trying to use them in an image.
 
-        r       = &texture_reflectivity[i][0];
-        g       = &texture_reflectivity[i][1];
-        b       = &texture_reflectivity[i][2];
+		r = &texture_reflectivity[ i ][ 0 ];
+		g = &texture_reflectivity[ i ][ 1 ];
+		b = &texture_reflectivity[ i ][ 2 ];
 
-        float P = sqrt(
-            (*r) * (*r) * Pr +
-            (*g) * (*g) * Pg +
-            (*b) * (*b) * Pb);
+		float P = sqrt(
+				( *r ) * ( *r ) * Pr +
+				( *g ) * ( *g ) * Pg +
+				( *b ) * ( *b ) * Pb );
 
-        *r = BOUND(0, P + (*r - P) * saturation, 255);
-        *g = BOUND(0, P + (*g - P) * saturation, 255);
-        *b = BOUND(0, P + (*b - P) * saturation, 255);
+		*r = BOUND( 0, P + ( *r - P ) * saturation, 255 );
+		*g = BOUND( 0, P + ( *g - P ) * saturation, 255 );
+		*b = BOUND( 0, P + ( *b - P ) * saturation, 255 );
 
-        qprintf("tex %i (%s) avg rgb [ %f, %f, %f ]\n",
-                i, path, texture_reflectivity[i][0],
-                texture_reflectivity[i][1], texture_reflectivity[i][2]);
-    }
+		qprintf( "tex %i (%s) avg rgb [ %f, %f, %f ]\n",
+		         i, path, texture_reflectivity[ i ][ 0 ],
+		         texture_reflectivity[ i ][ 1 ], texture_reflectivity[ i ][ 2 ] );
+	}
 }
 
 /*

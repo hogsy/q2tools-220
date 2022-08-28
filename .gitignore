@@ -12,3 +12,6 @@
 autosave/
 build/
 release/
+
+/cmake-build-debug/
+/.idea/

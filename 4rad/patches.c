@@ -42,7 +42,7 @@ CalcTextureReflectivity
 */
 void CalcTextureReflectivity( void )
 {
-	int32_t  i, j, k, count;
+	int32_t  count;
 	int32_t  texels, texel;
 	float    color[ 3 ], cur_color[ 3 ], tex_a, a;
 	char     path[ 1200 ];
@@ -62,7 +62,7 @@ void CalcTextureReflectivity( void )
 	texture_reflectivity[ 0 ][ 1 ] = 0.5f;
 	texture_reflectivity[ 0 ][ 2 ] = 0.5f;
 
-	for ( i = 0; i < numtexinfo; i++ )
+	for ( unsigned int i = 0; i < numtexinfo; i++ )
 	{
 		// default
 		texture_reflectivity[ i ][ 0 ] = 0.5f;
@@ -70,6 +70,7 @@ void CalcTextureReflectivity( void )
 		texture_reflectivity[ i ][ 2 ] = 0.5f;
 
 		// see if an earlier texinfo already got the value
+		unsigned int j;
 		for ( j = 0; j < i; j++ )
 		{
 			if ( !strcmp( texinfo[ i ].texture, texinfo[ j ].texture ) )
@@ -86,17 +87,36 @@ void CalcTextureReflectivity( void )
 			continue;
 
 		// buffer is RGBA  (A  set to 255 for 24 bit format)
+
+		static const char *supportedTextures[]={
+				".png",
+				".tga",
+				".bmp",
+		};
+		static const unsigned int numSupportedTextures = PL_ARRAY_ELEMENTS( supportedTextures );
+
 		// looks in moddir then base dir
-		sprintf( path, "%stextures/%s.png", moddir, texinfo[ i ].texture );
 
 		PLImage *image;
-		if ( ( image = PlLoadImage( path ) ) == NULL )
+		for ( unsigned int k = 0; k < numSupportedTextures; ++k )
 		{
-			qprintf( "FAILED TO LOAD %s: %s\n", path, PlGetError() );
-			sprintf( path, "%s%s/textures/%s.png", gamedir, basedir, texinfo[ i ].texture );
-			if ( ( image = PlLoadImage( path ) ) == NULL )
+			sprintf( path, "%stextures/%s%s", moddir, texinfo[ i ].texture, supportedTextures[ k ] );
+			if ( ( image = PlLoadImage( path ) ) != NULL )
+				break;
+		}
+
+		if ( image == NULL )
+		{
+			for ( unsigned int k = 0; k < numSupportedTextures; ++k )
 			{
-				qprintf( "FAILED TO LOAD %s: %s\n", path, PlGetError() );
+				sprintf( path, "%s%s/textures/%s%s", gamedir, basedir, texinfo[ i ].texture, supportedTextures[ k ] );
+				if ( ( image = PlLoadImage( path ) ) != NULL )
+					break;
+			}
+
+			if ( image == NULL )
+			{
+				qprintf( "FAILED TO LOAD %s: %s\n", texinfo[ i ].texture, PlGetError() );
 				continue;
 			}
 		}
